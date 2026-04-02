@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>摊位管家</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root {
+  --bg: #f7f5f0;
+  --surface: #ffffff;
+  --surface2: #f0ede6;
+  --border: #e2ddd4;
+  --border2: #ccc7bc;
+  --text: #1a1814;
+  --text2: #6b6560;
+  --text3: #9e9890;
+  --accent: #2d5a3d;
+  --accent-light: #e8f2ec;
+  --warn: #c4730a;
+  --warn-light: #fef3e2;
+  --danger: #b83232;
+  --danger-light: #fdeaea;
+  --radius: 10px;
+  --radius-sm: 6px;
+  --mono: 'JetBrains Mono', monospace;
+  --sans: 'Noto Sans SC', sans-serif;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: var(--sans); background: var(--bg); color: var(--text); font-size: 14px; min-height: 100vh; }
+.shell { display: flex; min-height: 100vh; }
+.sidebar { width: 200px; background: var(--surface); border-right: 1px solid var(--border); padding: 20px 12px; display: flex; flex-direction: column; gap: 4px; flex-shrink: 0; }
+.main { flex: 1; padding: 24px; overflow-x: hidden; min-width: 0; }
+.brand { font-size: 16px; font-weight: 600; color: var(--accent); padding: 8px 12px 20px; letter-spacing: -0.3px; }
+.nav-item { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: var(--radius-sm); cursor: pointer; font-size: 13px; color: var(--text2); transition: all 0.15s; border: none; background: none; width: 100%; text-align: left; }
+.nav-item:hover { background: var(--surface2); color: var(--text); }
+.nav-item.active { background: var(--accent-light); color: var(--accent); font-weight: 500; }
+.nav-icon { font-size: 16px; width: 20px; text-align: center; }
+.sync-status { margin-top: auto; padding: 8px 12px; font-size: 11px; color: var(--text3); display: flex; align-items: center; gap: 6px; }
+.sync-dot { width: 6px; height: 6px; border-radius: 50%; background: #aaa; flex-shrink: 0; }
+.sync-dot.ok { background: var(--accent); }
+.sync-dot.err { background: var(--danger); }
+.sync-dot.loading { background: var(--warn); animation: pulse 1s infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+@keyframes spin { to { transform: rotate(360deg); } }
+.page { display: none; }
+.page.active { display: block; }
+.page-title { font-size: 20px; font-weight: 600; margin-bottom: 20px; color: var(--text); letter-spacing: -0.3px; }
+.metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-bottom: 20px; }
+.metric { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; }
+.metric-label { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+.metric-val { font-family: var(--mono); font-size: 22px; font-weight: 500; }
+.metric-sub { font-size: 11px; color: var(--text3); margin-top: 4px; }
+.green { color: var(--accent); }
+.red { color: var(--danger); }
+.orange { color: var(--warn); }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 16px; }
+.card-title { font-size: 13px; font-weight: 600; color: var(--text2); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 16px; }
+.rate-bar { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 16px; margin-bottom: 20px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.rate-bar label { font-size: 12px; color: var(--text3); }
+.rate-val { font-family: var(--mono); font-weight: 500; font-size: 15px; color: var(--accent); }
+.rate-input { font-family: var(--mono); width: 80px; padding: 5px 8px; border: 1px solid var(--border2); border-radius: var(--radius-sm); font-size: 13px; background: var(--bg); color: var(--text); }
+.rate-note { font-size: 11px; color: var(--text3); margin-left: auto; }
+.table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 500px; }
+th { text-align: left; padding: 8px 12px; border-bottom: 2px solid var(--border); font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 500; white-space: nowrap; }
+td { padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: var(--bg); }
+.form-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; margin-bottom: 14px; }
+.form-group { display: flex; flex-direction: column; gap: 5px; }
+.form-group label { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.4px; font-weight: 500; }
+input, select { font-family: var(--sans); padding: 8px 10px; border: 1px solid var(--border2); border-radius: var(--radius-sm); font-size: 13px; background: var(--bg); color: var(--text); width: 100%; transition: border-color 0.15s; }
+input:focus, select:focus { outline: none; border-color: var(--accent); }
+input[readonly] { background: var(--surface2); color: var(--text3); }
+.btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: var(--radius-sm); border: 1px solid var(--border2); cursor: pointer; font-size: 13px; font-family: var(--sans); font-weight: 500; color: var(--text); background: var(--surface); transition: all 0.15s; }
+.btn:hover { background: var(--surface2); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+.btn-primary:hover { background: #244d34; }
+.btn-danger { color: var(--danger); border-color: var(--danger); }
+.btn-danger:hover { background: var(--danger-light); }
+.btn-sm { padding: 5px 10px; font-size: 12px; }
+.badge { display: inline-block; padding: 3px 8px; border-radius: 99px; font-size: 11px; font-weight: 500; }
+.badge-ok { background: var(--accent-light); color: var(--accent); }
+.badge-warn { background: var(--warn-light); color: var(--warn); }
+.badge-danger { background: var(--danger-light); color: var(--danger); }
+.badge-gray { background: var(--surface2); color: var(--text2); }
+.alert-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; border-radius: var(--radius-sm); margin-bottom: 6px; }
+.alert-warn { background: var(--warn-light); border-left: 3px solid var(--warn); }
+.alert-danger-item { background: var(--danger-light); border-left: 3px solid var(--danger); }
+.sale-product-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; }
+.product-chip { display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm); cursor: pointer; transition: all 0.15s; }
+.product-chip:hover { border-color: var(--accent); background: var(--accent-light); }
+.cart-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--border); }
+.cart-item:last-child { border-bottom: none; }
+.qty-control { display: flex; align-items: center; gap: 10px; }
+.qty-btn { width: 28px; height: 28px; border: 1px solid var(--border2); border-radius: 50%; background: var(--surface); cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center; color: var(--text); }
+.qty-btn:hover { background: var(--surface2); }
+.cart-total { text-align: right; padding-top: 12px; font-family: var(--mono); font-size: 18px; font-weight: 500; border-top: 2px solid var(--border); margin-top: 8px; }
+.rep-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; background: var(--bg); border-radius: var(--radius-sm); margin-bottom: 6px; font-size: 13px; }
+.rep-date { color: var(--text3); font-size: 12px; font-family: var(--mono); }
+.fx-box { margin-top: 16px; padding: 14px 16px; background: var(--accent-light); border-radius: var(--radius); border: 1px solid #c0dac9; display: flex; justify-content: space-between; align-items: center; }
+.fx-val { font-family: var(--mono); font-weight: 500; color: var(--accent); }
+.toast { position: fixed; bottom: 24px; right: 24px; background: var(--text); color: #fff; padding: 12px 18px; border-radius: var(--radius); font-size: 13px; z-index: 999; opacity: 0; transform: translateY(8px); transition: all 0.2s; pointer-events: none; max-width: 280px; }
+.toast.show { opacity: 1; transform: translateY(0); }
+.loading-overlay { position: fixed; inset: 0; background: rgba(247,245,240,0.92); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 200; gap: 12px; font-size: 14px; color: var(--text2); }
+.spinner { width: 32px; height: 32px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite; }
+.empty { text-align: center; padding: 40px 20px; color: var(--text3); font-size: 13px; }
+.empty-icon { font-size: 32px; margin-bottom: 8px; }
+.flex-row { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
+@media (max-width: 640px) {
+  .sidebar { display: none; }
+  .main { padding: 16px 14px 80px; }
+  .bottom-nav { display: flex !important; }
+  .metrics { grid-template-columns: 1fr 1fr; }
+  .form-grid { grid-template-columns: 1fr 1fr; }
+}
+.bottom-nav { display: none; position: fixed; bottom: 0; left: 0; right: 0; background: var(--surface); border-top: 1px solid var(--border); z-index: 100; padding: 6px 0 env(safe-area-inset-bottom); }
+.bnav-items { display: flex; }
+.bnav-item { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 6px; cursor: pointer; border: none; background: none; color: var(--text3); font-family: var(--sans); font-size: 10px; }
+.bnav-item.active { color: var(--accent); }
+.bnav-icon { font-size: 20px; }
+</style>
+</head>
+<body>
+
+<div id="loading-overlay" class="loading-overlay">
+  <div class="spinner"></div>
+  <div>正在连接数据库...</div>
+</div>
+
+<div class="shell">
+  <nav class="sidebar">
+    <div class="brand">摊位管家</div>
+    <button class="nav-item active" onclick="showPage('dashboard',0)"><span class="nav-icon">⊡</span>总览</button>
+    <button class="nav-item" onclick="showPage('sale',1)"><span class="nav-icon">⊕</span>销售录入</button>
+    <button class="nav-item" onclick="showPage('inventory',2)"><span class="nav-icon">◫</span>库存管理</button>
+    <button class="nav-item" onclick="showPage('restock',3)"><span class="nav-icon">⟳</span>进货记录</button>
+    <button class="nav-item" onclick="showPage('report',4)"><span class="nav-icon">◈</span>财务报表</button>
+    <div class="sync-status"><div class="sync-dot loading" id="sync-dot"></div><span id="sync-label">连接中...</span></div>
+  </nav>
+  <main class="main">
+
+    <div id="page-dashboard" class="page active">
+      <div class="page-title">总览</div>
+      <div class="rate-bar">
+        <label>汇率</label><span>1 AUD =</span>
+        <span class="rate-val" id="rate-display">— CNY</span>
+        <input type="number" class="rate-input" id="rate-input" step="0.01" onchange="updateRate(this.value)">
+        <span class="rate-note" id="rate-note">手动设置</span>
+      </div>
+      <div class="metrics">
+        <div class="metric"><div class="metric-label">本月营业额</div><div class="metric-val green" id="d-revenue">—</div><div class="metric-sub">目标 A$700</div></div>
+        <div class="metric"><div class="metric-label">本月净利润</div><div class="metric-val" id="d-profit">—</div><div class="metric-sub" id="d-margin">利润率 —</div></div>
+        <div class="metric"><div class="metric-label">库存预警</div><div class="metric-val red" id="d-alerts">—</div><div class="metric-sub">需补货</div></div>
+        <div class="metric"><div class="metric-label">在途货物</div><div class="metric-val orange" id="d-transit">—</div><div class="metric-sub">等待到货</div></div>
+      </div>
+      <div class="card"><div class="card-title">库存预警</div><div id="alert-list"><div class="empty"><div class="empty-icon">⟳</div>加载中...</div></div></div>
+      <div class="card"><div class="card-title">近期销售</div><div id="recent-sales"><div class="empty"><div class="empty-icon">⟳</div>加载中...</div></div></div>
+    </div>
+
+    <div id="page-sale" class="page">
+      <div class="page-title">销售录入</div>
+      <div class="card"><div class="card-title">摊位日期</div><input type="date" id="sale-date" style="max-width:180px"></div>
+      <div class="card"><div class="card-title">选择商品</div><div class="sale-product-grid" id="product-picker"></div></div>
+      <div class="card">
+        <div class="card-title">购物车</div>
+        <div id="cart-list"><div class="empty">还没有加入商品</div></div>
+        <div class="cart-total" id="cart-total" style="display:none"></div>
+        <div style="margin-top:14px;display:flex;gap:8px">
+          <button class="btn btn-primary" id="confirm-sale-btn" onclick="confirmSale()">确认出售</button>
+          <button class="btn" onclick="clearCart()">清空</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="page-inventory" class="page">
+      <div class="page-title">库存管理</div>
+      <div class="card">
+        <div class="card-title" id="inv-form-title">添加商品</div>
+        <div class="form-grid">
+          <div class="form-group" style="grid-column:span 2"><label>商品名称</label><input type="text" id="p-name" placeholder="如：手机膜 iPhone 16 Pro"></div>
+          <div class="form-group"><label>类别</label><select id="p-cat"><option>手机膜</option><option>充电器</option><option>数据线</option><option>车载支架</option><option>耳机</option><option>手机壳</option><option>其他</option></select></div>
+          <div class="form-group"><label>库存数量</label><input type="number" id="p-stock" placeholder="0" min="0"></div>
+          <div class="form-group"><label>预警阈值</label><input type="number" id="p-threshold" placeholder="5" min="1"></div>
+          <div class="form-group"><label>售价 (AUD)</label><input type="number" id="p-price" placeholder="0.00" step="0.01"></div>
+          <div class="form-group"><label>进货成本 (CNY/件)</label><input type="number" id="p-cost" placeholder="0.00" step="0.01"></div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-primary" onclick="saveProduct()">保存商品</button>
+          <button class="btn" onclick="cancelEdit()" id="cancel-edit-btn" style="display:none">取消编辑</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">库存列表（<span id="inv-count">0</span> 项）</div>
+        <div class="table-wrap"><table><thead><tr><th>商品名称</th><th>类别</th><th>库存</th><th>预警</th><th>售价</th><th>成本(CNY)</th><th>状态</th><th></th></tr></thead><tbody id="inventory-table"></tbody></table></div>
+      </div>
+    </div>
+
+    <div id="page-restock" class="page">
+      <div class="page-title">进货记录</div>
+      <div class="card">
+        <div class="card-title">新增进货</div>
+        <div class="form-grid">
+          <div class="form-group" style="grid-column:span 2"><label>商品</label><select id="rs-product"><option value="">请选择商品...</option></select></div>
+          <div class="form-group"><label>进货数量</label><input type="number" id="rs-qty" placeholder="0" min="1"></div>
+          <div class="form-group"><label>货款 (CNY)</label><input type="number" id="rs-goods-cny" placeholder="0" step="0.01" oninput="calcRestockAud()"></div>
+          <div class="form-group"><label>物流费 (CNY)</label><input type="number" id="rs-ship-cny" value="0" step="0.01" oninput="calcRestockAud()"></div>
+          <div class="form-group"><label>折算总成本 (AUD)</label><input type="number" id="rs-total-aud" placeholder="自动计算" readonly></div>
+          <div class="form-group"><label>下单日期</label><input type="date" id="rs-order-date"></div>
+          <div class="form-group"><label>预计到货</label><input type="date" id="rs-eta"></div>
+          <div class="form-group"><label>状态</label><select id="rs-status"><option value="transit">在途</option><option value="arrived">已到货</option></select></div>
+        </div>
+        <button class="btn btn-primary" onclick="saveRestock()">保存进货记录</button>
+      </div>
+      <div class="card">
+        <div class="card-title">进货历史</div>
+        <div class="table-wrap"><table><thead><tr><th>商品</th><th>数量</th><th>货款(CNY)</th><th>物流(CNY)</th><th>总成本(AUD)</th><th>下单日期</th><th>预计到货</th><th>状态</th></tr></thead><tbody id="restock-table"></tbody></table></div>
+      </div>
+    </div>
+
+    <div id="page-report" class="page">
+      <div class="page-title">财务报表</div>
+      <div class="card">
+        <div class="card-title">选择时间范围</div>
+        <div class="flex-row">
+          <div class="form-group"><label>开始日期</label><input type="date" id="rep-start" style="max-width:160px"></div>
+          <div class="form-group"><label>结束日期</label><input type="date" id="rep-end" style="max-width:160px"></div>
+          <button class="btn btn-primary" onclick="generateReport()">生成报表</button>
+        </div>
+      </div>
+      <div id="rep-results" style="display:none">
+        <div class="metrics">
+          <div class="metric"><div class="metric-label">销售总额</div><div class="metric-val green" id="rep-revenue">A$0</div></div>
+          <div class="metric"><div class="metric-label">商品成本</div><div class="metric-val" id="rep-cost">A$0</div></div>
+          <div class="metric"><div class="metric-label">毛利润</div><div class="metric-val" id="rep-profit">A$0</div></div>
+          <div class="metric"><div class="metric-label">利润率</div><div class="metric-val" id="rep-margin">0%</div></div>
+        </div>
+        <div class="card"><div class="card-title">同期进货支出</div><div id="rep-restock-cost" style="font-family:var(--mono);font-size:18px;color:var(--danger)"></div><div style="font-size:12px;color:var(--text3);margin-top:4px">同期下单的进货总成本（AUD）</div></div>
+        <div class="card">
+          <div class="card-title">销售明细</div>
+          <div id="rep-items"></div>
+          <div class="fx-box">
+            <div><div style="font-size:12px;color:var(--accent)">换汇参考建议</div><div style="font-size:11px;color:var(--accent);margin-top:3px" id="rep-fx-note"></div></div>
+            <div class="fx-val" id="rep-fx-val"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<nav class="bottom-nav">
+  <div class="bnav-items">
+    <button class="bnav-item active" onclick="showPage('dashboard',0)"><span class="bnav-icon">⊡</span>总览</button>
+    <button class="bnav-item" onclick="showPage('sale',1)"><span class="bnav-icon">⊕</span>销售</button>
+    <button class="bnav-item" onclick="showPage('inventory',2)"><span class="bnav-icon">◫</span>库存</button>
+    <button class="bnav-item" onclick="showPage('restock',3)"><span class="bnav-icon">⟳</span>进货</button>
+    <button class="bnav-item" onclick="showPage('report',4)"><span class="bnav-icon">◈</span>报表</button>
+  </div>
+</nav>
+<div class="toast" id="toast"></div>
+
+<script>
+const SUPABASE_URL = 'https://hrvdycfecxwqpgbuersq.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhydmR5Y2ZlY3h3cXBnYnVlcnNxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUwNjc1NTcsImV4cCI6MjA5MDY0MzU1N30.ueweHbTO-FnxNFN8rgIy4w-jQTDQBICEldkjzfNlPv8';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+let state = { rate: 4.72, products: [], sales: [], restock: [] };
+let cart = {}, editingId = null, currentPage = 'dashboard';
+
+const fmt = n => 'A$' + parseFloat(n).toFixed(2);
+const fmtCny = n => '¥' + parseFloat(n).toFixed(0);
+const cnyToAud = cny => cny / state.rate;
+const today = () => new Date().toISOString().split('T')[0];
+const eta70 = () => { let d = new Date(); d.setDate(d.getDate()+70); return d.toISOString().split('T')[0]; };
+
+function toast(msg, dur=2500) {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), dur);
+}
+
+function setSyncStatus(s) {
+  document.getElementById('sync-dot').className = 'sync-dot ' + s;
+  document.getElementById('sync-label').textContent = s==='ok'?'已同步':s==='loading'?'同步中...':'连接失败';
+}
+
+async function init() {
+  try {
+    const [p, sa, r, se] = await Promise.all([
+      sb.from('products').select('*').order('id'),
+      sb.from('sales').select('*').order('date', {ascending:false}),
+      sb.from('restock').select('*').order('order_date', {ascending:false}),
+      sb.from('settings').select('*')
+    ]);
+    if (p.error) throw p.error;
+    state.products = p.data || [];
+    state.sales = (sa.data || []).map(s => ({...s, items: s.items||[]}));
+    state.restock = r.data || [];
+    const rs = (se.data||[]).find(x => x.key==='rate');
+    if (rs) state.rate = parseFloat(rs.value);
+    setSyncStatus('ok');
+    document.getElementById('loading-overlay').style.display = 'none';
+    renderDashboard();
+  } catch(e) {
+    setSyncStatus('err');
+    document.getElementById('loading-overlay').innerHTML = `<div style="color:var(--danger);text-align:center;padding:20px"><div style="font-size:24px;margin-bottom:12px">⚠</div><div>数据库连接失败</div><div style="font-size:12px;margin-top:8px;color:var(--text3)">${e.message}</div></div>`;
+  }
+}
+
+function showPage(p, idx) {
+  document.querySelectorAll('.page').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.bnav-item').forEach(el => el.classList.remove('active'));
+  document.getElementById('page-'+p).classList.add('active');
+  document.querySelectorAll('.nav-item')[idx].classList.add('active');
+  document.querySelectorAll('.bnav-item')[idx].classList.add('active');
+  currentPage = p;
+  ({dashboard:renderDashboard, inventory:renderInventory, sale:renderSale, restock:renderRestock, report:initReport})[p]?.();
+}
+
+async function updateRate(v) {
+  const r = parseFloat(v); if (isNaN(r)||r<=0) return;
+  state.rate = r;
+  document.getElementById('rate-display').textContent = r.toFixed(2)+' CNY';
+  document.getElementById('rate-note').textContent = '已更新 '+today();
+  setSyncStatus('loading');
+  await sb.from('settings').upsert({key:'rate',value:String(r)},{onConflict:'key'});
+  setSyncStatus('ok');
+}
+
+function renderDashboard() {
+  document.getElementById('rate-input').value = state.rate;
+  document.getElementById('rate-display').textContent = state.rate.toFixed(2)+' CNY';
+  const now = new Date(), m = now.getMonth(), y = now.getFullYear();
+  const ms = state.sales.filter(s => { const d=new Date(s.date); return d.getMonth()===m&&d.getFullYear()===y; });
+  const revenue = ms.reduce((a,s) => a+parseFloat(s.total), 0);
+  const cost = ms.reduce((a,s) => a+(s.items||[]).reduce((b,i) => b+cnyToAud(i.costCny)*i.qty, 0), 0);
+  const profit = revenue-cost;
+  const margin = revenue>0 ? Math.round(profit/revenue*100) : 0;
+  document.getElementById('d-revenue').textContent = fmt(revenue);
+  document.getElementById('d-profit').textContent = fmt(profit);
+  document.getElementById('d-profit').className = 'metric-val '+(profit>=0?'green':'red');
+  document.getElementById('d-margin').textContent = '利润率 '+margin+'%';
+  const alerts = state.products.filter(p => p.stock<=p.threshold);
+  document.getElementById('d-alerts').textContent = alerts.length+' 项';
+  document.getElementById('d-transit').textContent = state.restock.filter(r=>r.status==='transit').length+' 批';
+  const al = document.getElementById('alert-list');
+  al.innerHTML = alerts.length===0
+    ? '<div class="empty"><div class="empty-icon">✓</div>所有商品库存充足</div>'
+    : alerts.sort((a,b)=>a.stock-b.stock).map(p => {
+        const isDanger = p.stock<=Math.floor(p.threshold*0.4);
+        return `<div class="alert-item ${isDanger?'alert-danger-item':'alert-warn'}">
+          <div><div style="font-weight:500;font-size:13px">${p.name}</div>
+          <div style="font-size:12px;color:var(--text2);margin-top:2px">剩余 <b>${p.stock}</b> 件 · 预警值 ${p.threshold} · ${p.cat}</div></div>
+          <span class="badge ${isDanger?'badge-danger':'badge-warn'}">${isDanger?'严重缺货':'库存偏低'}</span>
+        </div>`;
+      }).join('');
+  const recent = state.sales.slice(0,5);
+  document.getElementById('recent-sales').innerHTML = recent.length===0
+    ? '<div class="empty"><div class="empty-icon">—</div>暂无销售记录</div>'
+    : recent.map(s=>`<div class="rep-row"><div><span class="rep-date">${s.date}</span><span style="margin-left:10px;font-size:12px;color:var(--text2)">${(s.items||[]).map(i=>i.name+'×'+i.qty).join(' / ')}</span></div><b style="font-family:var(--mono)">${fmt(s.total)}</b></div>`).join('');
+}
+
+function renderInventory() {
+  document.getElementById('inv-count').textContent = state.products.length;
+  const tbody = document.getElementById('inventory-table');
+  tbody.innerHTML = state.products.length===0
+    ? '<tr><td colspan="8"><div class="empty"><div class="empty-icon">◫</div>暂无商品，请添加</div></td></tr>'
+    : state.products.map(p => {
+        const isDanger=p.stock<=Math.floor(p.threshold*0.4), isWarn=p.stock<=p.threshold&&!isDanger;
+        const badge = isDanger?'<span class="badge badge-danger">严重缺货</span>':isWarn?'<span class="badge badge-warn">库存偏低</span>':'<span class="badge badge-ok">正常</span>';
+        return `<tr>
+          <td style="font-weight:500">${p.name}</td>
+          <td><span class="badge badge-gray">${p.cat}</span></td>
+          <td style="font-family:var(--mono);font-weight:500">${p.stock}</td>
+          <td style="font-family:var(--mono)">${p.threshold}</td>
+          <td style="font-family:var(--mono)">${fmt(p.price)}</td>
+          <td style="font-family:var(--mono)">${fmtCny(p.cost_cny)} <span style="color:var(--text3);font-size:11px">(≈${fmt(cnyToAud(p.cost_cny))})</span></td>
+          <td>${badge}</td>
+          <td style="white-space:nowrap"><button class="btn btn-sm" onclick="editProduct(${p.id})" style="margin-right:4px">编辑</button><button class="btn btn-sm btn-danger" onclick="deleteProduct(${p.id})">删</button></td>
+        </tr>`;
+      }).join('');
+}
+
+async function saveProduct() {
+  const name = document.getElementById('p-name').value.trim();
+  if (!name) { toast('请填写商品名称'); return; }
+  const data = { name, cat:document.getElementById('p-cat').value, stock:parseInt(document.getElementById('p-stock').value)||0, threshold:parseInt(document.getElementById('p-threshold').value)||5, price:parseFloat(document.getElementById('p-price').value)||0, cost_cny:parseFloat(document.getElementById('p-cost').value)||0 };
+  setSyncStatus('loading');
+  try {
+    if (editingId!==null) {
+      const {error} = await sb.from('products').update(data).eq('id',editingId);
+      if (error) throw error;
+      const idx = state.products.findIndex(p=>p.id===editingId);
+      if (idx>=0) state.products[idx]={...state.products[idx],...data};
+      toast('商品已更新'); cancelEdit();
+    } else {
+      const {data:ins,error} = await sb.from('products').insert(data).select().single();
+      if (error) throw error;
+      state.products.push(ins); toast('商品已添加');
+    }
+    setSyncStatus('ok');
+    ['p-name','p-stock','p-threshold','p-price','p-cost'].forEach(id=>document.getElementById(id).value='');
+    renderInventory(); renderSaleProductPicker();
+  } catch(e) { setSyncStatus('err'); toast('保存失败: '+e.message); }
+}
+
+function editProduct(id) {
+  const p = state.products.find(x=>x.id===id); if (!p) return;
+  editingId=id;
+  document.getElementById('p-name').value=p.name;
+  document.getElementById('p-cat').value=p.cat;
+  document.getElementById('p-stock').value=p.stock;
+  document.getElementById('p-threshold').value=p.threshold;
+  document.getElementById('p-price').value=p.price;
+  document.getElementById('p-cost').value=p.cost_cny;
+  document.getElementById('inv-form-title').textContent='编辑：'+p.name;
+  document.getElementById('cancel-edit-btn').style.display='inline-flex';
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+function cancelEdit() {
+  editingId=null;
+  document.getElementById('inv-form-title').textContent='添加商品';
+  document.getElementById('cancel-edit-btn').style.display='none';
+  ['p-name','p-stock','p-threshold','p-price','p-cost'].forEach(id=>document.getElementById(id).value='');
+}
+
+async function deleteProduct(id) {
+  if (!confirm('确认删除该商品？')) return;
+  setSyncStatus('loading');
+  const {error} = await sb.from('products').delete().eq('id',id);
+  if (error) { setSyncStatus('err'); toast('删除失败'); return; }
+  state.products=state.products.filter(p=>p.id!==id);
+  setSyncStatus('ok'); renderInventory(); toast('已删除');
+}
+
+function renderSale() {
+  document.getElementById('sale-date').value=today();
+  renderSaleProductPicker(); renderCart();
+}
+
+function renderSaleProductPicker() {
+  const picker = document.getElementById('product-picker');
+  picker.innerHTML = state.products.length===0
+    ? '<div class="empty" style="grid-column:1/-1"><div class="empty-icon">◫</div>请先在库存管理中添加商品</div>'
+    : state.products.map(p=>`<div class="product-chip" onclick="addToCart(${p.id})"><div><div style="font-size:13px;font-weight:500">${p.name}</div><div style="font-size:11px;color:var(--text3);margin-top:2px">库存 ${p.stock}</div></div><div style="font-size:12px;color:var(--text3);font-family:var(--mono)">${fmt(p.price)}</div></div>`).join('');
+}
+
+function addToCart(id) {
+  const p=state.products.find(x=>x.id===id); if(!p) return;
+  if ((cart[id]||0)>=p.stock) { toast('库存不足'); return; }
+  cart[id]=(cart[id]||0)+1; renderCart();
+}
+
+function changeQty(id,delta) {
+  cart[id]=(cart[id]||0)+delta;
+  if (cart[id]<=0) delete cart[id];
+  renderCart();
+}
+
+function renderCart() {
+  const keys=Object.keys(cart);
+  const list=document.getElementById('cart-list'), totalEl=document.getElementById('cart-total');
+  if (keys.length===0) { list.innerHTML='<div class="empty">点击上方商品加入购物车</div>'; totalEl.style.display='none'; return; }
+  let total=0;
+  list.innerHTML=keys.map(id=>{
+    const p=state.products.find(x=>x.id==id), qty=cart[id], sub=p.price*qty; total+=sub;
+    return `<div class="cart-item"><div><div style="font-size:13px;font-weight:500">${p.name}</div><div style="font-size:12px;color:var(--text3);font-family:var(--mono)">${fmt(p.price)} × ${qty} = ${fmt(sub)}</div></div><div class="qty-control"><button class="qty-btn" onclick="changeQty(${id},-1)">−</button><span style="font-family:var(--mono);min-width:24px;text-align:center;font-weight:500">${qty}</span><button class="qty-btn" onclick="changeQty(${id},1)">+</button></div></div>`;
+  }).join('');
+  totalEl.style.display='block'; totalEl.textContent='合计：'+fmt(total);
+}
+
+async function confirmSale() {
+  const keys=Object.keys(cart); if (keys.length===0) { toast('请先添加商品'); return; }
+  const btn=document.getElementById('confirm-sale-btn'); btn.disabled=true;
+  const date=document.getElementById('sale-date').value;
+  const items=keys.map(id=>{ const p=state.products.find(x=>x.id==id); return {id:parseInt(id),name:p.name,qty:cart[id],price:p.price,costCny:p.cost_cny}; });
+  const total=items.reduce((a,i)=>a+i.price*i.qty,0);
+  setSyncStatus('loading');
+  try {
+    const {data:sale,error}=await sb.from('sales').insert({date,items,total}).select().single();
+    if (error) throw error;
+    state.sales.unshift(sale);
+    for (const i of items) {
+      const p=state.products.find(x=>x.id===i.id); if(!p) continue;
+      p.stock-=i.qty;
+      await sb.from('products').update({stock:p.stock}).eq('id',i.id);
+    }
+    setSyncStatus('ok'); cart={};
+    renderCart(); renderSaleProductPicker(); renderDashboard();
+    toast('销售记录已保存！共 '+fmt(total));
+  } catch(e) { setSyncStatus('err'); toast('保存失败: '+e.message); }
+  btn.disabled=false;
+}
+
+function clearCart() { cart={}; renderCart(); }
+
+function renderRestock() {
+  const sel=document.getElementById('rs-product');
+  sel.innerHTML='<option value="">请选择商品...</option>'+state.products.map(p=>`<option value="${p.id}">${p.name}</option>`).join('');
+  document.getElementById('rs-order-date').value=today();
+  document.getElementById('rs-eta').value=eta70();
+  renderRestockTable();
+}
+
+function calcRestockAud() {
+  const g=parseFloat(document.getElementById('rs-goods-cny').value)||0;
+  const s=parseFloat(document.getElementById('rs-ship-cny').value)||0;
+  document.getElementById('rs-total-aud').value=((g+s)/state.rate).toFixed(2);
+}
+
+async function saveRestock() {
+  const pid=parseInt(document.getElementById('rs-product').value); if(!pid){toast('请选择商品');return;}
+  const qty=parseInt(document.getElementById('rs-qty').value)||0; if(qty<=0){toast('请填写进货数量');return;}
+  const goodsCny=parseFloat(document.getElementById('rs-goods-cny').value)||0;
+  const shipCny=parseFloat(document.getElementById('rs-ship-cny').value)||0;
+  const totalAud=parseFloat(document.getElementById('rs-total-aud').value)||((goodsCny+shipCny)/state.rate);
+  const status=document.getElementById('rs-status').value;
+  const p=state.products.find(x=>x.id===pid);
+  const rec={product_id:pid,product_name:p.name,qty,goods_cny:goodsCny,ship_cny:shipCny,total_aud:parseFloat(totalAud.toFixed(2)),order_date:document.getElementById('rs-order-date').value,eta:document.getElementById('rs-eta').value,status};
+  setSyncStatus('loading');
+  try {
+    const {data:ins,error}=await sb.from('restock').insert(rec).select().single();
+    if(error) throw error;
+    state.restock.unshift(ins);
+    if(status==='arrived'){p.stock+=qty; await sb.from('products').update({stock:p.stock}).eq('id',pid);}
+    setSyncStatus('ok');
+    ['rs-qty','rs-goods-cny','rs-ship-cny','rs-total-aud'].forEach(id=>document.getElementById(id).value='');
+    document.getElementById('rs-product').value='';
+    renderRestockTable(); renderDashboard(); toast('进货记录已保存');
+  } catch(e){setSyncStatus('err');toast('保存失败: '+e.message);}
+}
+
+async function markArrived(id) {
+  const r=state.restock.find(x=>x.id===id); if(!r) return;
+  setSyncStatus('loading');
+  try {
+    await sb.from('restock').update({status:'arrived'}).eq('id',id);
+    r.status='arrived';
+    const p=state.products.find(x=>x.id===r.product_id);
+    if(p){p.stock+=r.qty; await sb.from('products').update({stock:p.stock}).eq('id',p.id);}
+    setSyncStatus('ok'); renderRestockTable(); renderDashboard(); renderInventory();
+    toast(r.product_name+' 已到货，库存 +'+r.qty);
+  } catch(e){setSyncStatus('err');toast('更新失败');}
+}
+
+function renderRestockTable() {
+  const tbody=document.getElementById('restock-table');
+  tbody.innerHTML=state.restock.length===0
+    ? '<tr><td colspan="8"><div class="empty"><div class="empty-icon">⟳</div>暂无进货记录</div></td></tr>'
+    : state.restock.map(r=>`<tr>
+        <td style="font-weight:500">${r.product_name}</td>
+        <td style="font-family:var(--mono)">${r.qty}</td>
+        <td style="font-family:var(--mono)">${fmtCny(r.goods_cny)}</td>
+        <td style="font-family:var(--mono)">${fmtCny(r.ship_cny)}</td>
+        <td style="font-family:var(--mono)">${fmt(r.total_aud)}</td>
+        <td style="font-family:var(--mono)">${r.order_date}</td>
+        <td style="font-family:var(--mono)">${r.eta}</td>
+        <td>${r.status==='arrived'?'<span class="badge badge-ok">已到货</span>':`<span class="badge badge-warn">在途</span> <button class="btn btn-sm" style="margin-left:6px" onclick="markArrived(${r.id})">到货</button>`}</td>
+      </tr>`).join('');
+}
+
+function initReport() {
+  const now=new Date(), y=now.getFullYear(), m=String(now.getMonth()+1).padStart(2,'0');
+  document.getElementById('rep-start').value=`${y}-${m}-01`;
+  document.getElementById('rep-end').value=today();
+}
+
+function generateReport() {
+  const start=new Date(document.getElementById('rep-start').value);
+  const end=new Date(document.getElementById('rep-end').value); end.setHours(23,59,59);
+  const filtered=state.sales.filter(s=>{const d=new Date(s.date);return d>=start&&d<=end;});
+  const revenue=filtered.reduce((a,s)=>a+parseFloat(s.total),0);
+  const costAud=filtered.reduce((a,s)=>a+(s.items||[]).reduce((b,i)=>b+cnyToAud(i.costCny)*i.qty,0),0);
+  const profit=revenue-costAud, margin=revenue>0?Math.round(profit/revenue*100):0;
+  const restockCost=state.restock.filter(r=>{const d=new Date(r.order_date);return d>=start&&d<=end;}).reduce((a,r)=>a+parseFloat(r.total_aud),0);
+  document.getElementById('rep-revenue').textContent=fmt(revenue);
+  document.getElementById('rep-cost').textContent=fmt(costAud);
+  document.getElementById('rep-profit').textContent=fmt(profit);
+  document.getElementById('rep-profit').className='metric-val '+(profit>=0?'green':'red');
+  document.getElementById('rep-margin').textContent=margin+'%';
+  document.getElementById('rep-restock-cost').textContent=fmt(restockCost);
+  document.getElementById('rep-items').innerHTML=filtered.length===0
+    ? '<div class="empty">该时段暂无销售记录</div>'
+    : filtered.map(s=>`<div class="rep-row"><div><span class="rep-date">${s.date}</span><span style="margin-left:10px;color:var(--text2);font-size:12px">${(s.items||[]).map(i=>i.name+'×'+i.qty).join('，')}</span></div><b style="font-family:var(--mono)">${fmt(s.total)}</b></div>`).join('');
+  const cnyNeeded=profit*0.5*state.rate;
+  document.getElementById('rep-fx-val').textContent=profit>100?'建议换 ¥'+Math.round(cnyNeeded):'暂不建议换汇';
+  document.getElementById('rep-fx-note').textContent=profit>100?'按利润50%换汇备货 · 1 AUD = '+state.rate+' CNY':'当前利润偏低，建议先累积';
+  document.getElementById('rep-results').style.display='block';
+}
+
+init();
+</script>
+</body>
+</html>
