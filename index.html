@@ -249,7 +249,13 @@ input[readonly]{background:var(--surface2);color:var(--text3)}
       <div class="card">
         <div class="card-title" id="restock-form-title">Add Restock Order</div>
         <div class="form-grid">
-          <div class="form-group" style="grid-column:span 2"><label>Product</label><select id="rs-product"><option value="">Select product...</option></select></div>
+          <div class="form-group" style="grid-column:span 2">
+            <label>Product</label>
+            <div style="display:flex;gap:8px;align-items:center">
+              <select id="rs-product" style="flex:1"><option value="">Select product...</option></select>
+              <button class="btn btn-sm" onclick="showQuickAddProduct()" type="button" style="white-space:nowrap;flex-shrink:0">+ New Product</button>
+            </div>
+          </div>
           <div class="form-group"><label>Qty Ordered</label><input type="number" id="rs-qty" placeholder="0" min="1"></div>
           <div class="form-group"><label>Goods Cost (CNY)</label><input type="number" id="rs-goods-cny" placeholder="0" step="0.01" oninput="calcRestockAud()"></div>
           <div class="form-group"><label>Shipping (CNY)</label><input type="number" id="rs-ship-cny" value="0" step="0.01" oninput="calcRestockAud()"></div>
@@ -311,6 +317,26 @@ input[readonly]{background:var(--surface2);color:var(--text3)}
     <button class="bnav-item" onclick="showPage('report',4)"><span class="bnav-icon">&#9830;</span>Report</button>
   </div>
 </nav>
+
+<!-- Quick Add Product Modal -->
+<div id="quick-add-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:300;align-items:center;justify-content:center;padding:20px">
+  <div style="background:var(--surface);border-radius:var(--radius);padding:24px;width:100%;max-width:420px;box-shadow:0 8px 32px rgba(0,0,0,0.15)">
+    <div style="font-size:15px;font-weight:600;margin-bottom:16px">Quick Add New Product</div>
+    <div class="form-grid" style="grid-template-columns:1fr 1fr">
+      <div class="form-group" style="grid-column:span 2"><label>Product Name</label><input type="text" id="qa-name" placeholder="e.g. Screen Protector iPhone 16"></div>
+      <div class="form-group"><label>Category</label><select id="qa-cat"><option>Screen Protector</option><option>Charger</option><option>Cable</option><option>Car Mount</option><option>Earphones</option><option>Phone Case</option><option>Other</option></select></div>
+      <div class="form-group"><label>Alert Threshold</label><input type="number" id="qa-threshold" placeholder="5" min="1" value="5"></div>
+      <div class="form-group"><label>Selling Price (AUD)</label><input type="number" id="qa-price" placeholder="0.00" step="0.01"></div>
+      <div class="form-group"><label>Cost Price (CNY/unit)</label><input type="number" id="qa-cost" placeholder="0.00" step="0.01"></div>
+    </div>
+    <div style="font-size:11px;color:var(--text3);margin-bottom:14px">Stock will start at 0 and update automatically when this restock order arrives.</div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-primary" onclick="saveQuickAddProduct()">Add Product</button>
+      <button class="btn" onclick="hideQuickAddProduct()">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -768,6 +794,49 @@ function generateReport(){
   document.getElementById('rep-fx-val').textContent=profit>100?'Convert ~Y'+Math.round(cnyNeeded):'Hold off for now';
   document.getElementById('rep-fx-note').textContent=profit>100?'Suggested: convert 50% of profit to CNY (1 AUD = '+state.rate+' CNY)':'Profit too low to recommend conversion yet';
   document.getElementById('rep-results').style.display='block';
+}
+
+// ── QUICK ADD PRODUCT (from Restock page) ────────────────────────
+function showQuickAddProduct(){
+  document.getElementById('qa-name').value='';
+  document.getElementById('qa-price').value='';
+  document.getElementById('qa-cost').value='';
+  document.getElementById('qa-threshold').value='5';
+  const modal=document.getElementById('quick-add-modal');
+  modal.style.display='flex';
+  setTimeout(()=>document.getElementById('qa-name').focus(),100);
+}
+
+function hideQuickAddProduct(){
+  document.getElementById('quick-add-modal').style.display='none';
+}
+
+async function saveQuickAddProduct(){
+  const name=document.getElementById('qa-name').value.trim();
+  if(!name){toast('Please enter a product name');return;}
+  const data={
+    name,
+    cat:document.getElementById('qa-cat').value,
+    stock:0,
+    threshold:parseInt(document.getElementById('qa-threshold').value)||5,
+    price:parseFloat(document.getElementById('qa-price').value)||0,
+    cost_cny:parseFloat(document.getElementById('qa-cost').value)||0
+  };
+  setSyncStatus('loading');
+  try{
+    const{data:ins,error}=await sb.from('products').insert(data).select().single();
+    if(error)throw error;
+    state.products.push(ins);
+    setSyncStatus('ok');
+    hideQuickAddProduct();
+    // Refresh the product dropdown and auto-select the new product
+    renderRestock();
+    const sel=document.getElementById('rs-product');
+    for(let i=0;i<sel.options.length;i++){
+      if(parseInt(sel.options[i].value)===ins.id){sel.selectedIndex=i;break;}
+    }
+    toast(name+' added! Now fill in the order details.');
+  }catch(e){setSyncStatus('err');toast('Save failed: '+e.message);}
 }
 
 init();
