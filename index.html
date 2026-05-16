@@ -702,7 +702,7 @@ function generateReport(){
   filtered.forEach(sale=>{
     (sale.items||[]).forEach(item=>{
       // Find category from products
-      const prod=S.products.find(p=>p.id===item.id||p.name===item.name);
+      const prod=S.products.find(p=>p.name===item.name);
       const cat=prod?prod.cat:'Other';
       if(!catMap[cat])catMap[cat]={rev:0,items:{}};
       catMap[cat].rev+=item.price*item.qty;
