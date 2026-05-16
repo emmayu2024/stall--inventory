@@ -391,8 +391,6 @@ async function init(){
       sb.from('settings').select('*')
     ]), 10000);
     if(p.error)throw p.error;
-    if(sa.error)throw sa.error;
-    if(r.error)throw r.error;
     state.products=p.data||[];
     state.sales=(sa.data||[]).map(s=>({...s,items:s.items||[]}));
     state.restock=r.data||[];
