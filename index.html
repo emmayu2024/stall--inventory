@@ -252,7 +252,7 @@ input[readonly]{background:var(--surface2);color:var(--text3)}
         </div>
         <div class="card"><div class="card-title">Restock Spend (same period)</div><div id="rep-rs" style="font-family:var(--mono);font-size:18px;color:var(--danger)"></div></div>
         <div class="card">
-          <div class="card-title">Sales Detail</div>
+          <div class="card-title">Sales by Category</div>
           <div id="rep-items"></div>
           <div class="fx-box">
             <div><div style="font-size:12px;color:var(--accent);font-weight:500">Currency Conversion Tip</div><div style="font-size:11px;color:var(--accent);margin-top:3px" id="rep-fx-note"></div></div>
@@ -701,8 +701,21 @@ function generateReport(){
   document.getElementById('rep-profit').className='metric-val '+(profit>=0?'green':'red');
   document.getElementById('rep-margin').textContent=margin+'%';
   document.getElementById('rep-rs').textContent=fmt(rsCost);
+  const catMap={};
+  filtered.forEach(s=>{(s.items||[]).forEach(i=>{const prod=S.products.find(p=>p.id===i.id);const cat=prod?prod.cat:'Other';if(!catMap[cat]){catMap[cat]={revenue:0,rows:[]};}const t=i.price*i.qty;catMap[cat].revenue+=t;catMap[cat].rows.push({date:s.date,name:i.name,qty:i.qty,total:t});});});
+  const catArr=Object.entries(catMap).sort((a,b)=>b[1].revenue-a[1].revenue);
   document.getElementById('rep-items').innerHTML=filtered.length===0?'<div class="empty">No sales in this period</div>'
-    :filtered.map(s=>'<div class="rep-row"><div><span style="color:var(--text3);font-size:12px;font-family:var(--mono)">'+s.date+'</span> <span style="color:var(--text2);font-size:12px">'+(s.items||[]).map(i=>i.name+' x'+i.qty).join(', ')+'</span></div><b style="font-family:var(--mono)">'+fmt(s.total)+'</b></div>').join('');
+    :catArr.map(([cat,data])=>'<div style="margin-bottom:16px">'
+      +'<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 14px;background:var(--accent-light);border-radius:var(--radius-sm);margin-bottom:2px">'
+      +'<span style="font-weight:600;font-size:13px;color:var(--accent)">'+cat+'</span>'
+      +'<b style="font-family:var(--mono);color:var(--accent)">'+fmt(data.revenue)+'</b>'
+      +'</div>'
+      +data.rows.map(r=>'<div class="rep-row" style="padding-left:20px">'
+        +'<div><span style="color:var(--text3);font-size:11px;font-family:var(--mono)">'+r.date+'</span>'
+        +' <span style="color:var(--text2);font-size:12px">'+r.name+' x'+r.qty+'</span></div>'
+        +'<span style="font-family:var(--mono);font-size:12px">'+fmt(r.total)+'</span>'
+        +'</div>').join('')
+      +'</div>').join('');
   const cny=profit*0.5*S.rate;
   document.getElementById('rep-fx-val').textContent=profit>100?'Convert ~Y'+Math.round(cny):'Hold off';
   document.getElementById('rep-fx-note').textContent=profit>100?'50% of profit as CNY (1 AUD = '+S.rate+' CNY)':'Profit too low';
