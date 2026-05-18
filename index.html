@@ -520,7 +520,7 @@ function renderSale(){
   selCat='All';renderCatTabs();renderPicker();renderCart();
 }
 
-function getCats(){return['All',...new Set(S.products.map(p=>p.cat))].sort((a,b)=>a==='All'?-1:b==='All'?1:a.localeCompare(b));}
+function getCats(){return['All',...S.categories.map(c=>c.name)].sort((a,b)=>a==='All'?-1:b==='All'?1:a.localeCompare(b));}
 
 function renderCatTabs(){
   document.getElementById('sale-cat-tabs').innerHTML=getCats().map(c=>'<button class="cat-tab'+(c===selCat?' active':'')+'" onclick="selCat=\''+c+'\';renderCatTabs();renderPicker()">'+c+'</button>').join('');
