@@ -723,7 +723,7 @@ function renderCategories(){
     return'<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border)">'
       +'<div><div style="font-weight:500;font-size:13px">'+c.name+'</div>'
       +'<div style="font-size:11px;color:var(--text3);margin-top:2px">'+inUse+' product'+(inUse!==1?'s':'')+'</div></div>'
-      +'<button class="btn btn-sm btn-danger" onclick="deleteCategory('+c.id+',''+c.name+'')"'+(inUse>0?' disabled title="Remove products first"':'')+'">Delete</button>'
+      +'<button class="btn btn-sm btn-danger" onclick="deleteCategory('+c.id+',\''+c.name+'\')"'+(inUse>0?' disabled title="Remove products first"':'')+'">Delete</button>'
       +'</div>';
   }).join('');
 }
