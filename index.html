@@ -96,6 +96,11 @@ input[readonly]{background:var(--surface2);color:var(--text3)}
 .bnav-item{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px;cursor:pointer;border:none;background:none;color:var(--text3);font-family:var(--sans);font-size:10px}
 .bnav-item.active{color:var(--accent)}
 .bnav-icon{font-size:18px}
+.sale-grid-v2{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+@media(max-width:480px){.sale-grid-v2{grid-template-columns:repeat(2,1fr)}}
+#sale-cart-bar{bottom:0}
+#cart-panel{bottom:68px}
+@media(max-width:640px){#sale-cart-bar{bottom:56px}#cart-panel{bottom:124px}}
 </style>
 </head>
 <body>
@@ -133,29 +138,22 @@ input[readonly]{background:var(--surface2);color:var(--text3)}
     </div>
 
     <div id="page-sale" class="page">
-      <div class="page-title">Record Sale</div>
-      <div class="card"><div class="card-title">Stall Date</div><input type="date" id="sale-date" style="max-width:180px"></div>
-      <div class="card">
-        <div class="card-title">Select Products</div>
-        <div class="cat-tabs" id="sale-cat-tabs"></div>
-        <div class="sale-grid" id="product-picker"></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+        <div class="page-title" style="margin-bottom:0">Record Sale</div>
+        <input type="date" id="sale-date" style="width:auto;border-radius:99px;padding:6px 12px;font-size:13px;font-family:var(--mono);border:1px solid var(--border2);background:var(--bg);color:var(--text)">
       </div>
-      <div class="card">
-        <div class="card-title">Cart</div>
-        <div id="cart-list"><div class="empty">Tap a product to add it</div></div>
-        <div id="cart-summary" style="display:none">
-          <div class="cart-line"><span style="color:var(--text3)">Subtotal</span><span style="font-family:var(--mono)" id="cart-subtotal"></span></div>
-          <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0">
-            <span style="color:var(--text3);font-size:13px">Discount (AUD)</span>
-            <input type="number" id="discount-input" placeholder="0.00" step="0.50" min="0" style="width:100px;text-align:right;font-family:var(--mono)" oninput="renderCartTotal()">
-          </div>
-          <div class="cart-total-row"><span style="font-size:13px;font-weight:400;color:var(--text2)">Total charged</span><span id="cart-total"></span></div>
-        </div>
-        <div style="margin-top:14px;display:flex;gap:8px">
-          <button class="btn btn-primary" id="confirm-btn" onclick="confirmSale()">Confirm Sale</button>
-          <button class="btn" onclick="clearCart()">Clear</button>
-        </div>
+      <div style="display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--border);border-radius:99px;padding:10px 16px;margin-bottom:12px">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="color:var(--text3);flex-shrink:0"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="text" id="sale-search" placeholder="搜商品名 / 型号" oninput="filterPicker(this.value)" style="border:none;background:transparent;font-size:13px;width:100%;outline:none;color:var(--text)">
       </div>
+      <div class="cat-tabs" id="sale-cat-tabs"></div>
+      <div id="sale-bestsellers-wrap" style="display:none">
+        <div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin:4px 0 8px">常卖 · 近 30 天</div>
+        <div id="sale-bestsellers" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px"></div>
+      </div>
+      <div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px" id="sale-all-title">全部商品</div>
+      <div class="sale-grid-v2" id="product-picker"></div>
+      <div style="height:140px"></div>
     </div>
 
     <div id="page-inventory" class="page">
@@ -290,6 +288,32 @@ input[readonly]{background:var(--surface2);color:var(--text3)}
   </div>
 </nav>
 
+<div id="sale-cart-bar" style="display:none;position:fixed;left:0;right:0;background:var(--surface);border-top:1px solid var(--border);padding:12px 16px;z-index:150;box-shadow:0 -2px 8px rgba(0,0,0,.06);align-items:center;justify-content:space-between">
+  <div onclick="toggleCartPanel()" style="cursor:pointer">
+    <div style="font-size:12px;color:var(--text2);margin-bottom:2px" id="cart-bar-label">未选商品</div>
+    <div style="display:flex;align-items:center;gap:8px">
+      <span style="font-family:var(--mono);font-size:20px;font-weight:500" id="cart-bar-total">A$0.00</span>
+      <span style="font-size:11px;color:var(--accent)">明细 ▲</span>
+    </div>
+  </div>
+  <button class="btn btn-primary" id="confirm-btn" onclick="confirmSale()" style="padding:10px 24px;font-size:14px">Confirm</button>
+</div>
+<div id="cart-panel" style="display:none;position:fixed;left:0;right:0;background:var(--surface);border-top:2px solid var(--border);border-radius:14px 14px 0 0;padding:20px 16px;max-height:60vh;overflow-y:auto;z-index:145;box-shadow:0 -4px 20px rgba(0,0,0,.1)">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+    <span style="font-weight:600;font-size:14px">购物明细</span>
+    <button class="btn btn-sm" onclick="toggleCartPanel()">收起 ▼</button>
+  </div>
+  <div id="cart-list"><div class="empty">Tap a product to add it</div></div>
+  <div id="cart-summary" style="display:none">
+    <div class="cart-line"><span style="color:var(--text3)">Subtotal</span><span style="font-family:var(--mono)" id="cart-subtotal"></span></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0">
+      <span style="color:var(--text3);font-size:13px">Discount (AUD)</span>
+      <input type="number" id="discount-input" placeholder="0.00" step="0.50" min="0" style="width:100px;text-align:right;font-family:var(--mono)" oninput="renderCartTotal()">
+    </div>
+    <div class="cart-total-row"><span style="font-size:13px;font-weight:400;color:var(--text2)">Total charged</span><span id="cart-total"></span></div>
+  </div>
+  <div style="margin-top:12px"><button class="btn" onclick="clearCart()">Clear Cart</button></div>
+</div>
 <div id="quick-add-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:300;align-items:center;justify-content:center;padding:20px">
   <div style="background:var(--surface);border-radius:var(--radius);padding:24px;width:100%;max-width:400px">
     <div style="font-size:15px;font-weight:600;margin-bottom:16px">Quick Add Product</div>
@@ -317,7 +341,7 @@ const sb=supabase.createClient(SB_URL,SB_KEY);
 const BUCKET='product-images';
 
 let S={rate:4.72,products:[],sales:[],restock:[],categories:[]};
-let cart={},editId=null,editRsId=null,selCat='All',pendingImg=null;
+let cart={},editId=null,editRsId=null,selCat='All',pendingImg=null,searchQ='';
 
 const fmt=n=>'A$'+parseFloat(n).toFixed(2);
 const fmtY=n=>'Y'+parseFloat(n).toFixed(0);
@@ -374,6 +398,9 @@ function showPage(p,idx){
   document.getElementById('page-'+p).classList.add('active');
   document.querySelectorAll('.nav-item')[idx].classList.add('active');
   document.querySelectorAll('.bnav-item')[idx].classList.add('active');
+  const bar=document.getElementById('sale-cart-bar');
+  if(bar)bar.style.display=p==='sale'?'flex':'none';
+  if(p!=='sale'){const panel=document.getElementById('cart-panel');if(panel)panel.style.display='none';}
   ({dashboard:renderDashboard,inventory:renderInventory,sale:renderSale,restock:renderRestock,report:initReport,categories:renderCategories})[p]?.();
 }
 
@@ -517,7 +544,10 @@ async function importCSV(input){
 
 function renderSale(){
   document.getElementById('sale-date').value=today();
-  selCat='All';renderCatTabs();renderPicker();renderCart();
+  selCat='All';searchQ='';
+  const si=document.getElementById('sale-search');if(si)si.value='';
+  const bar=document.getElementById('sale-cart-bar');if(bar)bar.style.display='flex';
+  renderCatTabs();renderBestSellers();renderPicker();renderCart();
 }
 
 function getCats(){return['All',...S.categories.map(c=>c.name)].sort((a,b)=>a==='All'?-1:b==='All'?1:a.localeCompare(b));}
@@ -527,7 +557,10 @@ function renderCatTabs(){
 }
 
 function renderPicker(){
-  const filtered=selCat==='All'?S.products:S.products.filter(p=>p.cat===selCat);
+  let filtered=selCat==='All'?S.products:S.products.filter(p=>p.cat===selCat);
+  if(searchQ)filtered=filtered.filter(p=>p.name.toLowerCase().includes(searchQ));
+  const titleEl=document.getElementById('sale-all-title');
+  if(titleEl)titleEl.textContent='全部商品 · '+filtered.length;
   document.getElementById('product-picker').innerHTML=filtered.length===0?'<div class="empty" style="grid-column:1/-1">No products</div>'
     :filtered.map(p=>{
       const img=p.image_url?'<img src="'+p.image_url+'" class="chip-img">':`<div class="chip-placeholder">&#128247;</div>`;
@@ -546,7 +579,7 @@ function changeQty(id,d){cart[id]=(cart[id]||0)+d;if(cart[id]<=0)delete cart[id]
 function renderCart(){
   const keys=Object.keys(cart);
   const list=document.getElementById('cart-list'),sum=document.getElementById('cart-summary');
-  if(keys.length===0){list.innerHTML='<div class="empty">Tap a product to add it</div>';sum.style.display='none';const di=document.getElementById('discount-input');if(di)di.value='';return;}
+  if(keys.length===0){list.innerHTML='<div class="empty">Tap a product to add it</div>';sum.style.display='none';const di=document.getElementById('discount-input');if(di)di.value='';renderCartBar();return;}
   list.innerHTML=keys.map(id=>{const p=S.products.find(x=>x.id==id),qty=cart[id],sub=p.price*qty;return'<div class="cart-item"><div><div style="font-weight:500">'+p.name+'</div><div style="font-size:12px;color:var(--text3);font-family:var(--mono)">'+fmt(p.price)+' x '+qty+' = '+fmt(sub)+'</div></div><div class="qty-ctrl"><button class="qty-btn" onclick="changeQty('+id+',-1)">-</button><span style="font-family:var(--mono);min-width:24px;text-align:center;font-weight:500">'+qty+'</span><button class="qty-btn" onclick="changeQty('+id+',1)">+</button></div></div>';}).join('');
   sum.style.display='block';renderCartTotal();
 }
@@ -558,6 +591,7 @@ function renderCartTotal(){
   const total=Math.max(0,sub-disc);
   document.getElementById('cart-subtotal').textContent=fmt(sub);
   const te=document.getElementById('cart-total');te.textContent=fmt(total);te.style.color=disc>0?'var(--accent)':'';
+  renderCartBar();
 }
 
 async function confirmSale(){
@@ -574,13 +608,51 @@ async function confirmSale(){
     if(error)throw error;
     S.sales.unshift(sale);
     for(const i of items){const p=S.products.find(x=>x.id===i.id);if(!p)continue;p.stock-=i.qty;await sb.from('products').update({stock:p.stock}).eq('id',i.id);}
-    sync('ok');cart={};renderCart();renderPicker();renderDashboard();
+    sync('ok');cart={};
+    const panel=document.getElementById('cart-panel');if(panel)panel.style.display='none';
+    renderCart();renderPicker();renderDashboard();
     toast('Sale saved! '+fmt(total)+(disc>0?' (discount '+fmt(disc)+')':''));
   }catch(e){sync('err');toast('Error: '+e.message);}
   btn.disabled=false;
 }
 
-function clearCart(){cart={};renderCart();}
+function clearCart(){cart={};const panel=document.getElementById('cart-panel');if(panel)panel.style.display='none';renderCart();}
+function getBestSellers(){
+  const cutoff=new Date();cutoff.setDate(cutoff.getDate()-30);
+  const counts={};
+  S.sales.filter(s=>new Date(s.date)>=cutoff).forEach(s=>{(s.items||[]).forEach(i=>{counts[i.id]=(counts[i.id]||0)+i.qty;});});
+  return Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,4).map(([id])=>S.products.find(p=>p.id==id)).filter(Boolean);
+}
+function renderBestSellers(){
+  const bs=getBestSellers();
+  const wrap=document.getElementById('sale-bestsellers-wrap');
+  if(!bs.length||!wrap){if(wrap)wrap.style.display='none';return;}
+  wrap.style.display='block';
+  document.getElementById('sale-bestsellers').innerHTML=bs.map(p=>{
+    const img=p.image_url?'<img src="'+p.image_url+'" style="width:44px;height:44px;border-radius:var(--radius-sm);object-fit:cover;flex-shrink:0">'
+      :'<div style="width:44px;height:44px;border-radius:var(--radius-sm);background:var(--surface2);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:18px">&#128247;</div>';
+    return'<div style="display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:10px;cursor:pointer" onclick="addToCart('+p.id+')">'
+      +img+'<div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+p.name+'</div>'
+      +'<div style="font-size:12px;font-family:var(--mono);color:var(--accent);margin-top:2px">'+fmt(p.price)+'</div></div></div>';
+  }).join('');
+}
+function filterPicker(q){searchQ=q.trim().toLowerCase();renderPicker();}
+function renderCartBar(){
+  const keys=Object.keys(cart);
+  const bar=document.getElementById('sale-cart-bar');if(!bar||bar.style.display==='none')return;
+  const label=document.getElementById('cart-bar-label'),totalEl=document.getElementById('cart-bar-total');
+  if(!label||!totalEl)return;
+  if(keys.length===0){label.textContent='未选商品';totalEl.textContent='A$0.00';return;}
+  const count=keys.reduce((a,id)=>a+cart[id],0);
+  label.textContent='已选 '+count+' 件';
+  const sub=keys.reduce((a,id)=>{const p=S.products.find(x=>x.id==id);return a+(p?p.price*cart[id]:0);},0);
+  const disc=parseFloat(document.getElementById('discount-input')?.value)||0;
+  totalEl.textContent=fmt(Math.max(0,sub-disc));
+}
+function toggleCartPanel(){
+  const panel=document.getElementById('cart-panel');if(!panel)return;
+  panel.style.display=panel.style.display==='none'?'block':'none';
+}
 
 function renderRestock(){
   const sel=document.getElementById('rs-product');
